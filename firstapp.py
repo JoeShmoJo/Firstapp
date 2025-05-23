@@ -15,43 +15,49 @@ def load_data():
 
 def save_data(data):
     with open(DATA_FILE, "w") as f:
-        json.dump(data, f)
+        json.dump(data, f, indent=2)
 
-# Filter by time
 def filter_data(data, days):
     cutoff = datetime.now() - timedelta(days=days)
     return [entry for entry in data if datetime.fromisoformat(entry["timestamp"]) > cutoff]
 
-# Summarize by category
 def summarize(data):
-    summary = {cat: 0.0 for cat in CATEGORIES}
+    summary = {cat: 0 for cat in CATEGORIES}
     for entry in data:
         summary[entry["category"]] += entry["amount"]
     return summary
 
-# UI
+# Streamlit app
 st.title("Spending Tracker")
 
-amount = st.number_input("Enter amount", min_value=0.0, step=0.01)
+# Session state to clear input after use
+if "amount" not in st.session_state:
+    st.session_state.amount = 0
 
+# Input field: whole dollars only
+amount = st.number_input("Enter amount ($)", min_value=0, step=1, value=st.session_state.amount)
+
+# Buttons
+data = load_data()
 col1, col2, col3 = st.columns(3)
-if col1.button("Booze"):
-    entry = {"amount": amount, "category": "Booze", "timestamp": datetime.now().isoformat()}
-    data = load_data()
-    data.append(entry)
-    save_data(data)
-if col2.button("Coffee"):
-    entry = {"amount": amount, "category": "Coffee", "timestamp": datetime.now().isoformat()}
-    data = load_data()
-    data.append(entry)
-    save_data(data)
-if col3.button("Food"):
-    entry = {"amount": amount, "category": "Food", "timestamp": datetime.now().isoformat()}
-    data = load_data()
-    data.append(entry)
-    save_data(data)
 
-# Show summaries
+def log_expense(category):
+    data.append({
+        "amount": amount,
+        "category": category,
+        "timestamp": datetime.now().isoformat()
+    })
+    save_data(data)
+    st.session_state.amount = 0  # Reset input
+
+if col1.button("Booze"):
+    log_expense("Booze")
+if col2.button("Coffee"):
+    log_expense("Coffee")
+if col3.button("Food"):
+    log_expense("Food")
+
+# Summaries
 data = load_data()
 st.subheader("Today")
 st.write(summarize(filter_data(data, 1)))
@@ -61,3 +67,15 @@ st.write(summarize(filter_data(data, 7)))
 
 st.subheader("This Month")
 st.write(summarize(filter_data(data, 31)))
+
+# Raw JSON Editor for all entries
+st.subheader("Edit Expense Log")
+
+raw_text = st.text_area("Logged Entries (JSON format)", value=json.dumps(data, indent=2), height=300)
+if st.button("Save Changes"):
+    try:
+        new_data = json.loads(raw_text)
+        save_data(new_data)
+        st.success("Changes saved.")
+    except Exception as e:
+        st.error(f"Invalid JSON: {e}")
