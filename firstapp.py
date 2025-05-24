@@ -6,7 +6,7 @@ import os
 DATA_FILE = "spending_data.json"
 CATEGORIES = ["Booze", "Coffee", "Food"]
 
-# Load/save functions
+# Load/save data
 def load_data():
     if os.path.exists(DATA_FILE):
         with open(DATA_FILE, "r") as f:
@@ -27,32 +27,29 @@ def summarize(data):
         summary[entry["category"]] += entry["amount"]
     return summary
 
-# App title
+# Streamlit app
 st.title("Spending Tracker")
 
-# Text input for dollars (whole numbers)
-if "amount_input" not in st.session_state:
-    st.session_state.amount_input = ""
+# Session state to clear input after use
+if "amount" not in st.session_state:
+    st.session_state.amount = 0
 
-amount = st.text_input("Enter amount ($ whole dollars)", value=st.session_state.amount_input, key="amount_box")
-
-# Function to log entry and clear input
-def log_expense(category):
-    try:
-        amount_value = int(st.session_state.amount_box)
-        data = load_data()
-        data.append({
-            "amount": amount_value,
-            "category": category,
-            "timestamp": datetime.now().isoformat()
-        })
-        save_data(data)
-        st.session_state.amount_box = ""  # Clear input box
-    except ValueError:
-        st.error("Please enter a valid whole dollar amount.")
+# Input field: whole dollars only
+amount = st.number_input("Enter amount ($)", min_value=0, step=1, value=st.session_state.amount)
 
 # Buttons
+data = load_data()
 col1, col2, col3 = st.columns(3)
+
+def log_expense(category):
+    data.append({
+        "amount": amount,
+        "category": category,
+        "timestamp": datetime.now().isoformat()
+    })
+    save_data(data)
+    st.session_state.amount = 0  # Reset input
+
 if col1.button("Booze"):
     log_expense("Booze")
 if col2.button("Coffee"):
@@ -60,9 +57,8 @@ if col2.button("Coffee"):
 if col3.button("Food"):
     log_expense("Food")
 
-# Reload and show summaries
+# Summaries
 data = load_data()
-
 st.subheader("Today")
 st.write(summarize(filter_data(data, 1)))
 
@@ -72,14 +68,14 @@ st.write(summarize(filter_data(data, 7)))
 st.subheader("This Month")
 st.write(summarize(filter_data(data, 31)))
 
-# Editable JSON log
-st.subheader("Edit Logged Expenses")
-log_text = st.text_area("Log (JSON format)", value=json.dumps(data, indent=2), height=300)
+# Raw JSON Editor for all entries
+st.subheader("Edit Expense Log")
 
+raw_text = st.text_area("Logged Entries (JSON format)", value=json.dumps(data, indent=2), height=300)
 if st.button("Save Changes"):
     try:
-        new_data = json.loads(log_text)
+        new_data = json.loads(raw_text)
         save_data(new_data)
         st.success("Changes saved.")
     except Exception as e:
-        st.error(f"Error: Invalid JSON\n{e}")
+        st.error(f"Invalid JSON: {e}")
